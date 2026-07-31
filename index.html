@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Escola Paraná - App</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height:100%;
+    width:100%;
+    overflow:hidden;
+    background:#000;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  #phone-frame {
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#000;
+  }
+
+  /* Ocupa 100% da tela do celular, sem cortar topo/rodapé da imagem */
+  #screen {
+    position:relative;
+    width:100%;
+    height:100vh;   /* fallback pra navegadores sem suporte a dvh */
+    height:100dvh;
+    overflow:hidden;
+    background:#000;
+  }
+
+  .page {
+    position:absolute;
+    inset:0;
+    display:none;
+  }
+  .page.active { display:block; }
+
+  /* Fundo de cor: uma faixa que reproduz as cores de topo/rodapé da imagem,
+     esticada exatamente na mesma altura da imagem em tela, preenchendo
+     as laterais quando sobra espaço, sem bordas duras */
+  .bg-solid {
+    position:absolute;
+    left:0;
+    top:0;
+    background-repeat:no-repeat;
+    background-size:100% 100%;
+  }
+
+  /* Imagem real, sempre inteira visivel (nunca corta topo/rodapé) */
+  .fg {
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    object-position:center;
+    -webkit-user-select:none;
+    user-select:none;
+    -webkit-user-drag:none;
+    pointer-events:none;
+  }
+
+  .hotspot {
+    position:absolute;
+    border-radius:50%;
+    background:transparent;
+    cursor:pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* deixe visivel para depurar posicionamento, se precisar */
+  .hotspot.debug {
+    background:rgba(255,0,0,0.25);
+    border:1px solid rgba(255,0,0,0.6);
+  }
+
+  .page {
+    transition:opacity .18s ease;
+    opacity:0;
+  }
+  .page.active {
+    opacity:1;
+  }
+</style>
+</head>
+<body>
+
+<div id="phone-frame">
+  <div id="screen">
+
+    <!-- PAGINA 1 (menu) - imagem unica, fundo + conteudo integrados -->
+    <div class="page active" id="page-1">
+      <div class="bg-solid" style="background-image:url('images/novobackground.png')"></div>
+      <div class="hotspot"
+           id="hotspot-perfil"
+           data-page="1"
+           data-x="0.3865" data-y="0.3852" data-w="0.0542" data-h="0.0963"
+           onclick="goTo(2)"
+           aria-label="Abrir perfil"></div>
+    </div>
+
+    <!-- PAGINA 2 (perfil) -->
+    <div class="page" id="page-2">
+      <div class="bg-solid" style="background-image:url('images/page2background.png')"></div>
+      <img class="fg" src="images/page2.png" alt="Pagina 2 - Perfil" draggable="false">
+      <div class="hotspot"
+           id="hotspot-back"
+           data-page="2"
+           data-x="0" data-y="0.0052" data-w="0.1216" data-h="0.0547"
+           onclick="goTo(1)"
+           aria-label="Voltar"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const IMG_DIMS = {
+    1: [1920, 1080],
+    2: [1727, 3840]
+  };
+
+  // pagina 1: imagem unica cobrindo 100% da tela, sem cortar topo/rodape
+  //           (corta laterais se necessario em telas mais estreitas)
+  // pagina 2: imagem sempre inteira visivel (contain) + fundo de cor esticado
+  const FIT_MODE = {
+    1: 'cover',
+    2: 'contain'
+  };
+
+  function layout() {
+    const screen = document.getElementById('screen');
+    const rect = screen.getBoundingClientRect();
+    const cw = rect.width, ch = rect.height;
+
+    document.querySelectorAll('.page').forEach(page => {
+      const pageNum = page.id.replace('page-', '');
+      const [imgW, imgH] = IMG_DIMS[pageNum];
+      const fit = FIT_MODE[pageNum];
+
+      // 'cover' = nunca deixa espaco vazio (corta o que sobrar),
+      //           mas como a proporcao da imagem é bem mais larga que a tela do
+      //           celular em pé, na pratica quem sempre "fecha a conta" é a
+      //           altura - ou seja, o topo/rodape nunca ficam cortados.
+      // 'contain' = imagem sempre inteira visivel, pode sobrar espaco nos lados.
+      const scale = fit === 'cover'
+        ? Math.max(cw / imgW, ch / imgH)
+        : Math.min(cw / imgW, ch / imgH);
+
+      const dispW = imgW * scale, dispH = imgH * scale;
+      const offX = (cw - dispW) / 2, offY = (ch - dispH) / 2;
+
+      const bg = page.querySelector('.bg-solid');
+      if (bg) {
+        if (fit === 'cover') {
+          // a propria imagem de fundo é o conteudo: posiciona e dimensiona
+          // exatamente como ficaria em tela (podendo estourar os lados,
+          // que ficam cortados pelo overflow:hidden do container)
+          bg.style.left   = offX + 'px';
+          bg.style.top    = offY + 'px';
+          bg.style.width  = dispW + 'px';
+          bg.style.height = dispH + 'px';
+        } else {
+          // fundo de cor: mesma altura/posicao vertical da imagem,
+          // esticado por toda a largura da tela
+          bg.style.left   = '0px';
+          bg.style.top    = offY + 'px';
+          bg.style.width  = cw + 'px';
+          bg.style.height = dispH + 'px';
+        }
+      }
+
+      // hotspots
+      page.querySelectorAll('.hotspot').forEach(h => {
+        const fx = parseFloat(h.dataset.x);
+        const fy = parseFloat(h.dataset.y);
+        const fw = parseFloat(h.dataset.w);
+        const fh = parseFloat(h.dataset.h);
+
+        h.style.left   = (offX + fx * dispW) + 'px';
+        h.style.top    = (offY + fy * dispH) + 'px';
+        h.style.width  = (fw * dispW) + 'px';
+        h.style.height = (fh * dispH) + 'px';
+      });
+    });
+  }
+
+  function goTo(n) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + n).classList.add('active');
+  }
+
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', layout);
+  window.addEventListener('load', layout);
+  layout();
+</script>
+
+</body>
+</html>
